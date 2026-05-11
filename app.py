@@ -38,6 +38,9 @@ def find_workflow_image():
 
 
 WORKFLOW_IMAGE = find_workflow_image()
+CONTACT_IMAGE = os.path.join(BASE_DIR, "contact_photo.png")
+if not os.path.exists(CONTACT_IMAGE):
+    CONTACT_IMAGE = None
 
 print("BASE_DIR =", BASE_DIR)
 print("MODEL_PATH =", MODEL_PATH)
@@ -184,6 +187,26 @@ def get_example_images():
 
 example_images = get_example_images()
 
+def get_example_label(image_path, index):
+    name = os.path.basename(image_path).lower()
+
+    if "normal" in name or "healthy" in name:
+        return "Normal"
+    if "pneumonia" in name or "abnormal" in name or "infect" in name:
+        return "Pneumonia"
+
+    if index == 0:
+        return "Normal"
+    if index == 1:
+        return "Pneumonia"
+
+    return f"Test Image {index + 1}"
+
+def load_example_by_index(index):
+    if index is None or index < 0 or index >= len(example_images):
+        return None
+    return Image.open(example_images[index]).convert("RGB")
+
 css = '''
 .gradio-container {
     max-width: 1400px !important;
@@ -213,6 +236,30 @@ css = '''
     border-radius: 12px;
     padding: 16px;
     margin-bottom: 14px;
+}
+.contact-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 18px;
+    margin-top: 10px;
+}
+.contact-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: #16a34a;
+    margin-bottom: 10px;
+}
+.contact-line {
+    font-size: 15px;
+    margin: 8px 0;
+}
+.example-label {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: -6px;
+    margin-bottom: 8px;
 }
 '''
 
@@ -260,18 +307,6 @@ with gr.Blocks(title="Pneumonia Detection Platform", theme=gr.themes.Soft(), css
         gr.HTML('<div class="section-title">Single Image Pneumonia Analysis</div>')
         gr.Markdown("Upload one chest X-ray image and run the model to obtain prediction results and visualization.")
 
-        gr.HTML("""
-        <div class="info-box">
-            <div class="sub-title">What the reader should compare</div>
-            <p>
-            A healthy chest X-ray usually shows relatively clear lung fields and no obvious focal dense opacity,
-            while a pneumonia chest X-ray often presents patchy or confluent opacities, local dense regions,
-            or abnormal lung texture. The heatmap is used to show which image regions contributed most strongly
-            to the model's decision.
-            </p>
-        </div>
-        """)
-
         with gr.Row():
             with gr.Column(scale=1):
                 input_image = gr.Image(type="pil", label="Upload Chest X-ray")
@@ -288,31 +323,20 @@ with gr.Blocks(title="Pneumonia Detection Platform", theme=gr.themes.Soft(), css
             outputs=[result_box, cam_box, interp_box]
         )
 
-        gr.Markdown("### Two Suggested Comparison Cases")
-        gr.Markdown("Prepare one NORMAL image and one PNEUMONIA image in the `example/` folder so readers can directly compare the model outputs.")
-
-        gr.HTML("""
-        <div class="note-box">
-            <div class="sub-title">Suggested comparison logic</div>
-            <ul>
-                <li><b>Normal case:</b> clear lung fields, relatively uniform texture, no obvious focal dense opacity.</li>
-                <li><b>Pneumonia case:</b> patchy opacity, local high-density region, or abnormal lung texture.</li>
-                <li><b>Heatmap meaning:</b> the highlighted area indicates which region the model relied on most.</li>
-                <li><b>Reader takeaway:</b> the model is responding to visually abnormal regions rather than making a random decision.</li>
-            </ul>
-        </div>
-        """)
-
-        gr.Markdown("### Quick Test Images")
-        gr.Markdown("Put a few sample X-ray images into the `example/` folder. Ideally include one healthy case and one pneumonia case. Click one image below to automatically load it.")
-
+        gr.Markdown("### Click a test image to load it")
         if len(example_images) > 0:
-            gr.Examples(
-                examples=example_images,
-                inputs=input_image,
-                outputs=[],
-                label="Click a test image to load it"
-            )
+            with gr.Row():
+                for idx, img_path in enumerate(example_images):
+                    with gr.Column(scale=1):
+                        label_text = get_example_label(img_path, idx)
+                        gr.Image(value=img_path, show_label=False, interactive=False, height=180)
+                        gr.HTML(f'<div class="example-label">{label_text}</div>')
+                        example_index = gr.State(idx)
+                        gr.Button(f"Load {label_text}").click(
+                            fn=load_example_by_index,
+                            inputs=example_index,
+                            outputs=input_image
+                        )
         else:
             gr.Markdown("No example images found in the `example/` folder.")
 
@@ -328,45 +352,21 @@ with gr.Blocks(title="Pneumonia Detection Platform", theme=gr.themes.Soft(), css
         </div>
         """)
 
-    with gr.Tab("Explore More"):
-        gr.HTML('<div class="section-title">Explore More</div>')
+    with gr.Tab("Contact Us"):
+        gr.HTML('<div class="section-title">📞 Contact us while you have any problems with Pneumonia Detection Platform</div>')
 
-        with gr.Row():
-            with gr.Column():
-                gr.HTML("""
-                <div class="info-box">
-                    <div class="sub-title">Model Comparison</div>
-                    <ul>
-                        <li>Compare VGG16, ResNet50, MobileNetV2, and SE-DenseNet121</li>
-                        <li>Review final Accuracy, Precision, Recall, F1-score, and AUC</li>
-                        <li>Display published-method comparison from the paper</li>
-                    </ul>
-                </div>
-                """)
+        with gr.Row(elem_classes="contact-card"):
+            with gr.Column(scale=1, min_width=140):
+                if CONTACT_IMAGE is not None:
+                    gr.Image(value=CONTACT_IMAGE, label=None, show_label=False, interactive=False, height=160, width=120)
+                else:
+                    gr.Markdown("Please place `contact_photo.png` in the same folder as `app.py`.")
 
-            with gr.Column():
+            with gr.Column(scale=5):
                 gr.HTML("""
-                <div class="info-box">
-                    <div class="sub-title">Explainability</div>
-                    <ul>
-                        <li>Display Grad-CAM examples</li>
-                        <li>Review radiographic plausibility</li>
-                        <li>Support visual interpretation of model decisions</li>
-                    </ul>
-                </div>
-                """)
-
-        with gr.Row():
-            with gr.Column():
-                gr.HTML("""
-                <div class="info-box">
-                    <div class="sub-title">Deployment</div>
-                    <ul>
-                        <li>Web demo screenshots</li>
-                        <li>Workflow figure display</li>
-                        <li>Paper figure and result export support</li>
-                    </ul>
-                </div>
+                <div class="contact-name">Mohan Lin</div>
+                <div class="contact-line"><b>✉️ Email:</b> <a href="mailto:2361741607@qq.com">2361741607@qq.com</a></div>
+                <div class="contact-line"><b>🏫 Address:</b> Fujian Medical University, Xue Yuan Road, University Town, FuZhou, Fujian, China</div>
                 """)
 
 demo.launch()
